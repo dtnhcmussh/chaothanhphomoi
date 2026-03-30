@@ -89,14 +89,14 @@ function loadHoangSaTruongSa() {
             // Thêm nhãn cho quần đảo
             const labelIcon = L.divIcon({
                 className: 'hoangsa-label-marker',
-                html: '<div class="hoangsa-label-text">quần đảo Hoàng Sa (Việt Nam)</div>',
+                html: '<div class="hoangsa-label-text">quần đảo Trường Sa (Việt Nam)</div>',
                 iconSize: null,
                 iconAnchor: null
             });
             
             const truongSaLabelIcon = L.divIcon({
                 className: 'truongsa-label-marker',
-                html: '<div class="truongsa-label-text">quần đảo<br>Trường Sa (Việt Nam)</div>',
+                html: '<div class="truongsa-label-text">quần đảo<br>Hoàng Sa (Việt Nam)</div>',
                 iconSize: null,
                 iconAnchor: null
             });
