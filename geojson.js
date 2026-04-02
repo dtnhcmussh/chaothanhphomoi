@@ -156,8 +156,12 @@ function loadGeoJSON() {
                 bringTrusoToFront();
             }
 
-            // Fit map to bounds của GeoJSON
-            map.fitBounds(geoJsonLayer.getBounds());
+            // Fit map để hiển thị toàn bộ dữ liệu (ưu tiên gom bounds từ nhiều lớp)
+            if (typeof fitMapToAllData === 'function') {
+                fitMapToAllData();
+            } else {
+                map.fitBounds(geoJsonLayer.getBounds());
+            }
 
             // Cập nhật thông tin
             const featureCount = data.features ? data.features.length : 0;

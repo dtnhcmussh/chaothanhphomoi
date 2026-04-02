@@ -1,6 +1,17 @@
 // map.js - Khởi tạo bản đồ và các lớp bản đồ
+// Giới hạn thao tác trong khu vực TP.HCM
+const lockedMapBounds = L.latLngBounds(
+    [8.40, 106.20],
+    [11.80, 107.95]
+);
+
 // Khởi tạo bản đồ - Tọa độ mặc định: Thành phố Hồ Chí Minh
-const map = L.map('map').setView([10.8231, 106.6297], 13);
+const map = L.map('map', {
+    maxBounds: lockedMapBounds,
+    maxBoundsViscosity: 1.0,
+    minZoom: 9,
+    maxZoom: 19
+}).setView([10.90, 106.95], 9);
 
 // Tạo custom panes để quản lý z-index của các lớp
 // Pane cho GeoJSON boundary layer (dưới)
@@ -46,7 +57,6 @@ coordinateDisplay.addTo(map);
 
 // Lưu trữ các lớp bản đồ
 const baseLayers = {
-    "Bản đồ đường": osmLayer,
     "Satellite (CartoDB)": satelliteLayer,
     "Bản đồ vệ tinh (Esri)": esriSatelliteLayer
 };
@@ -54,6 +64,48 @@ const baseLayers = {
 // Lưu trữ các điểm đánh dấu
 let markers = [];
 let markerGroup = L.layerGroup().addTo(map);
+
+// Zoom bản đồ để hiển thị toàn bộ dữ liệu hiện có (GeoJSON + Trụ sở)
+function fitMapToAllData(options = {}) {
+    const combinedBounds = L.latLngBounds([]);
+
+    const geoLayer = window.geoJsonLayer;
+    if (geoLayer && typeof geoLayer.getBounds === 'function') {
+        const geoBounds = geoLayer.getBounds();
+        if (geoBounds && geoBounds.isValid()) {
+            combinedBounds.extend(geoBounds);
+        }
+    }
+
+    const officesLayer = window.trusoLayer;
+    if (officesLayer && typeof officesLayer.getBounds === 'function') {
+        const officeBounds = officesLayer.getBounds();
+        if (officeBounds && officeBounds.isValid()) {
+            combinedBounds.extend(officeBounds);
+        }
+    }
+
+    if (combinedBounds.isValid()) {
+        map.fitBounds(combinedBounds.pad(0.12), {
+            padding: [20, 20],
+            maxZoom: 10,
+            ...options
+        });
+    } else {
+        map.fitBounds(lockedMapBounds, {
+            padding: [20, 20],
+            maxZoom: 8,
+            ...options
+        });
+    }
+}
+
+// Đảm bảo khi vào trang/reload sẽ thấy toàn bộ dữ liệu
+window.addEventListener('load', function() {
+    setTimeout(function() {
+        fitMapToAllData();
+    }, 400);
+});
 
 // Xử lý sự kiện mousemove để cập nhật tọa độ
 map.on('mousemove', function(e) {
@@ -395,3 +447,4 @@ window.toggleLayer = toggleLayer;
 window.exportMapAsPNG = exportMapAsPNG;
 window.resetMap = resetMap;
 window.clearSelection = clearSelection;
+window.fitMapToAllData = fitMapToAllData;

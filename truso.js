@@ -79,6 +79,10 @@ function loadTrusoData() {
 
             bringTrusoToFront();
 
+            if (typeof fitMapToAllData === 'function') {
+                fitMapToAllData();
+            }
+
             // Cap nhat global refs sau khi tao layer moi
             window.trusoLayer = trusoLayer;
             window.trusoData = trusoData;
