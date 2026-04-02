@@ -11,12 +11,6 @@ geoJsonPane.style.zIndex = 450;
 const trusoPane = map.createPane('trusoPane');
 trusoPane.style.zIndex = 650;
 
-// Thêm lớp bản đồ OpenStreetMap
-const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors',
-    maxZoom: 19
-});
-
 // Thêm lớp bản đồ Satellite (CartoDB)
 const satelliteLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     attribution: '© OpenStreetMap contributors © CARTO',
