@@ -1,17 +1,17 @@
 // map.js - Khởi tạo bản đồ và các lớp bản đồ
-// Giới hạn thao tác trong khu vực TP.HCM
+// Giới hạn thao tác trong phạm vi được chỉ định
 const lockedMapBounds = L.latLngBounds(
-    [8.40, 106.20],
-    [11.80, 107.95]
+    [8.105561897498903, 102.14624994801243],
+    [12.138568799010323, 110.31215163212435]
 );
 
 // Khởi tạo bản đồ - Tọa độ mặc định: Thành phố Hồ Chí Minh
 const map = L.map('map', {
     maxBounds: lockedMapBounds,
     maxBoundsViscosity: 1.0,
-    minZoom: 9,
-    maxZoom: 19
-}).setView([10.90, 106.95], 9);
+    minZoom: 8,
+    maxZoom: 21
+}).setView([10.90, 106.95], 8);
 
 // Tạo custom panes để quản lý z-index của các lớp
 // Pane cho GeoJSON boundary layer (dưới)
@@ -88,13 +88,13 @@ function fitMapToAllData(options = {}) {
     if (combinedBounds.isValid()) {
         map.fitBounds(combinedBounds.pad(0.12), {
             padding: [20, 20],
-            maxZoom: 10,
+            maxZoom: 21,
             ...options
         });
     } else {
         map.fitBounds(lockedMapBounds, {
             padding: [20, 20],
-            maxZoom: 8,
+            maxZoom: 21,
             ...options
         });
     }
