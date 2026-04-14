@@ -5,6 +5,123 @@ let allFeatures = []; // Lưu trữ tất cả các feature để tìm kiếm
 let searchResults = []; // Lưu trữ kết quả tìm kiếm
 let highlightedLayer = null; // Layer được highlight khi tìm kiếm
 
+function normalizeText(value) {
+    if (value === undefined || value === null) return '';
+    return value.toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+}
+
+function findFieldName(headers, patterns) {
+    const normalized = headers.map(header => normalizeText(header));
+    for (const pattern of patterns) {
+        const index = normalized.findIndex(value => value.includes(pattern));
+        if (index !== -1) {
+            return headers[index];
+        }
+    }
+    return null;
+}
+
+function buildIntroductionMap(rows) {
+    if (!rows || !rows.length) return null;
+    const headers = Object.keys(rows[0]);
+    const sttField = findFieldName(headers, ['stt', 'so thu tu', 'số thứ tự', 'id', 'ma', 'mã', 'ma so', 'mã số']);
+    const nameField = findFieldName(headers, ['ten_xa', 'tenxa', 'ten phuong', 'ten phường', 'ten xa', 'ten xã', 'name', 'phuong', 'xa']);
+    let introField = findFieldName(headers, ['gioithieu', 'gioi thieu', 'gioi', 'introdu', 'thieu', 'gioithie', 'gioithieulie']);
+    if (!introField) {
+        introField = headers.find(h => {
+            const normalized = normalizeText(h);
+            return normalized.includes('gioi') && normalized.includes('thieu');
+        }) || null;
+    }
+
+    if ((!sttField && !nameField) || !introField) {
+        console.warn('Không tìm thấy cột STT/khóa hoặc cột giới thiệu trong file Excel', { sttField, nameField, introField, headers });
+        return null;
+    }
+
+    const map = {};
+    rows.forEach(row => {
+        let key = '';
+        if (sttField && row[sttField] !== undefined && row[sttField] !== null && String(row[sttField]).trim() !== '') {
+            key = String(row[sttField]).trim();
+        } else if (nameField) {
+            key = normalizeText(row[nameField]);
+        }
+        if (!key) return;
+        const intro = row[introField];
+        if (intro !== undefined && intro !== null && intro !== '') {
+            map[key] = intro;
+        }
+    });
+    return map;
+}
+
+function findIntroductionKey(feature, introMap) {
+    if (!feature || !feature.properties) return null;
+
+    const sttValue = feature.properties.stt || feature.properties.STT || feature.properties.id || feature.properties.ID;
+    if (sttValue !== undefined && sttValue !== null && String(sttValue).trim() !== '') {
+        const sttKey = String(sttValue).trim();
+        if (introMap[sttKey]) {
+            return sttKey;
+        }
+    }
+
+    const keys = [
+        feature.properties.ten_xa,
+        feature.properties.TenXa,
+        feature.properties.ten_phuong,
+        feature.properties.TenPhuong,
+        feature.properties.name,
+        feature.properties.NAME,
+        feature.properties.Ten,
+        feature.properties.TEN
+    ].map(normalizeText).filter(Boolean);
+
+    for (const key of keys) {
+        if (introMap[key]) {
+            return key;
+        }
+    }
+
+    const featureText = keys.join(' ');
+    for (const introKey of Object.keys(introMap)) {
+        if (!introKey) continue;
+        if (featureText.includes(introKey) || introKey.includes(featureText)) {
+            return introKey;
+        }
+    }
+
+    return null;
+}
+
+async function loadIntroductionData() {
+    try {
+        const response = await fetch('Phuong_xa_gthieu.xlsx');
+        if (!response.ok) {
+            throw new Error('Không thể tải file Excel giới thiệu');
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        if (!sheetName) {
+            throw new Error('Không tìm thấy sheet trong file Excel');
+        }
+        const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
+        const introMap = buildIntroductionMap(rows) || {};
+        console.log('Loaded Excel intro rows:', rows.length, 'introMap keys:', Object.keys(introMap).length);
+        return introMap;
+    } catch (error) {
+        console.warn('Lỗi khi đọc Phuong_xa_gthieu.xlsx:', error);
+        return {};
+    }
+}
+
 // Hàm load và hiển thị GeoJSON
 function loadGeoJSON() {
     // Xóa layer cũ nếu có
@@ -12,10 +129,26 @@ function loadGeoJSON() {
         map.removeLayer(geoJsonLayer);
     }
 
-    // Load file GeoJSON
-    fetch('HCM_PhuongXa.geojson')
-        .then(response => response.json())
-        .then(data => {
+    // Load file GeoJSON và dữ liệu giới thiệu từ Excel
+    const geoJsonPromise = fetch('HCM_Phuongxa_update.json').then(response => response.json());
+    const introPromise = loadIntroductionData();
+
+    Promise.all([geoJsonPromise, introPromise])
+        .then(([data, introMap]) => {
+            // Gắn phần giới thiệu vào từng feature nếu có dữ liệu từ Excel
+                    console.log('Loaded introMap key count:', Object.keys(introMap).length);
+            if (introMap && Object.keys(introMap).length) {
+                (data.features || []).forEach(feature => {
+                    if (!feature.properties) return;
+                    const matchKey = findIntroductionKey(feature, introMap);
+                    if (matchKey) {
+                        feature.properties.Gioithieu = introMap[matchKey];
+                    }
+                });
+            } else {
+                console.warn('Không tìm được dữ liệu giới thiệu từ file Excel hoặc file Excel không có cột phù hợp');
+            }
+
             // Lưu trữ dữ liệu gốc
             geoJsonData = data;
             allFeatures = data.features || [];
@@ -36,9 +169,7 @@ function loadGeoJSON() {
                 // Có thể tùy chỉnh màu theo thuộc tính của feature
                 // Ví dụ: theo tên quận/huyện
                 const colors = [
-                    'rgba(166, 163, 163, 0)', '#4ECDC4', '#45B7D1', '#FFA07A',
-                    '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2',
-                    '#F8B739', '#6C5CE7', '#A29BFE', '#FD79A8'
+                    'rgba(166, 163, 163, 0)'
                 ];
                 // Sử dụng hash đơn giản để tạo màu ổn định
                 if (feature.properties) {
@@ -61,11 +192,12 @@ function loadGeoJSON() {
                         'ten_xa': 'Tên Phường/Xã',
                         'sap_nhap': 'Sáp nhập từ',
                         'loai': 'Loại',
-                        'Gioithieu': 'Giới thiệu'
+                        'Gioithieu': 'Giới thiệu',
+                        'gioithieu': 'Giới thiệu'
                     };
                     
                     for (let field in fieldLabels) {
-                        if (feature.properties[field] !== undefined) {
+                        if (feature.properties[field] !== undefined && feature.properties[field] !== '') {
                             popupContent += `<strong>${fieldLabels[field]}:</strong> ${feature.properties[field]}<br>`;
                         }
                     }
